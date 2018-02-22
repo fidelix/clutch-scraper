@@ -1,0 +1,16 @@
+{
+    "name": "fidelix/clutch-scraper",
+    "require": {
+        "php": ">=5.6",
+        "ext-pdo": "*",
+        "ext-pdo_sqlite": "*",
+        "fabpot/goutte": "^3.2",
+        "doctrine/dbal": "^2.6"
+    },
+    "authors": [
+        {
+            "name": "Felipe Fidelix",
+            "email": "eu@felipefidelix.com"
+        }
+    ]
+}
