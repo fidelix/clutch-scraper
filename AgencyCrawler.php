@@ -9,7 +9,7 @@ class AgencyCrawler
 {
     public $DB;
     public $client;
-    public $siteListUri = "https://clutch.co/web-developers?";
+    public $siteListUri = "https://clutch.co/web-developers?sort_bef_combine=title+ASC";
     public $siteNodeUri = "https://clutch.co/node/";
     public function __construct(\Doctrine\DBAL\Connection $dbConn, Client $client)
     {
@@ -23,7 +23,7 @@ class AgencyCrawler
         if ($country) {
             $sql = 'SELECT code FROM country WHERE name = ?';
             $result = $this->DB->fetchAssoc($sql, [$country]);
-            $uri .= "country={$result['code']}";
+            $uri .= "&country={$result['code']}";
         }
         // Get the first page. Agencies in this page are always collected.
         $firstPage = $this->client->request('GET', $uri);
@@ -34,15 +34,14 @@ class AgencyCrawler
             exit('Could not determine total page count');
         }
         $pageTotal = $matches[1];
-        // TODO REMOVE DEBUGGGG
-        $pageTotal = 1;
         print "Total Pages: $pageTotal\n";
-        for ($i = 1; $i <= $pageTotal; $i++) {
-            print 'Page ' . ($i + 1) . PHP_EOL;
+        for ($i = 1 + $offset; $i <= $pageTotal; $i++) {
+            print "Crawling page $i of $pageTotal\n";
             if ($i === 1) {
                 $page = $firstPage;
             } else {
-                $page = $this->client->request('GET', "${uri}&page=$i");
+                $pageNumber = $i - 1;
+                $page = $this->client->request('GET', "${uri}&page=$pageNumber");
             }
             $agencyNodes = $page->filter('.view-display-id-directory .provider-row > .row')
                 ->reduce(function (Crawler $node, $i) {
@@ -55,7 +54,6 @@ class AgencyCrawler
             $agencyData = $agencyNodes->each(function (Crawler $node) {
                 $id = $node->attr('data-clutch-nid');
                 $name = $node->filter('.company-name a')->text();
-                print($name . PHP_EOL);
                 $localityNode = $node->filter('.location-city .locality');
                 $locality = null;
                 if ($localityNode->count()) {
@@ -91,18 +89,31 @@ class AgencyCrawler
         if ($country) {
             $sql .= ' WHERE country = ?';
         }
+        if (!$noCache && !$country) {
+            $sql .= " WHERE employees IS NULL OR employees = ''";
+        } elseif (!$noCache && $country) {
+            $sql .= " AND (employees IS NULL OR employees = '')";
+        }
         $stmt = $this->DB->executeQuery($sql, [$country]);
         // Process each agency from DB.
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            if (!$noCache && $row['employees']) {
-                continue;
-            }
+        $agencyList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $count = count($agencyList);
+        $currentNumber = 0;
+        print  $count . " agencies to be updated. \n";
+        foreach ($agencyList as $row) {
+            $currentNumber++;
+            print "$currentNumber of $count. ";
             $agencyId = $row['id'];
             $page = $this->client->request('GET', $this->siteNodeUri . '/' . $agencyId);
-            $jsString = $page->filter('script')->last()->text();
+            $jsNode = $page->filter('script')->last();
+            if (!$jsNode->count()) {
+                trigger_error("Could not find JS Data for $agencyId - {$row['name']}", E_USER_ERROR);
+                continue;
+            }
+            $jsString = $jsNode->text();
             if (!preg_match('/jQuery.extend\(Drupal\.settings, (.+)\);/', $jsString, $match)) {
-                // TODO fail cleanly
-                exit('Could not fetch JS Data');
+                trigger_error("Could not find JS Data for $agencyId - {$row['name']}", E_USER_ERROR);
+                continue;
             }
             $jsData = json_decode($match[1]);
             foreach ($jsData->clutchGraph as $focus) {
@@ -154,20 +165,22 @@ class AgencyCrawler
                 $telephone,
                 $agencyId
             ]);
-            print "Updated agency {$row['name']}\n";
+            print "Updated {$row['name']}.\n";
         }
     }
     public function saveCSV($path, $country)
     {
+        exit();
         // Build the headers.
         $headers = [
             'ID', 'Name', 'Employees', 'City', 'Post Code', 'Country',
             'Website', 'Telephone'];
-        $niceHeaders = [
-            'Web Development', 'Amazon', 'Heroku', 'Google app engine',
+        $niceHosting = ['Amazon', 'Heroku', 'Google app engine'];
+        $niceDev = [
+            'Web Development',
             'Drupal', 'Laravel', 'Symfony', 'Wordpress', 'WooCommerce',
             'Ubercart', 'CakePHP', 'Zend', 'Magento', 'Shopify', 'PHP',
-            'Python', 'Ruby', 'Ruby on Rails', 'Django',
+            'Python', 'Ruby', 'Ruby on Rails', 'Django'
         ];
 
         $bigArray = [];

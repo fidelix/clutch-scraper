@@ -1,5 +1,5 @@
 # Clutch Scraper
-This project scrapes clutch.co for web development agencies.
+This project is a crawler that scrapes and sanitizes web development agencies from clutch.co.
 
 # Requirements
 - PDO Extension
