@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS agency (
   id INTEGER PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,
+  mail TEXT,
   employees TEXT,
   locality TEXT,
   postCode TEXT,

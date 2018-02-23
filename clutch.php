@@ -17,15 +17,6 @@ $conn = \Doctrine\DBAL\DriverManager::getConnection($connectionParams, $config);
 $agencyCrawler = new AgencyCrawler($conn, new Goutte\Client());
 $country = !empty($options['country']) ? $options['country'] : false;
 
-/*$result = $conn->query('SELECT * FROM attribute');
-foreach ($result->fetchAll(PDO::FETCH_ASSOC) as $row) {
-    $name = trim(preg_replace("/^\d{1,3}%/", "", strip_tags($row['name'])));
-    if ($name != $row['name']) {
-        $conn->executeUpdate('UPDATE attribute SET name = ? WHERE id = ?', [$name, $row['id']]);
-    }
-}
-exit;*/
-
 // Get list of agencies
 if (isset($options['list'])) {
     $offset = isset($options['offset']) ? $options['offset'] : 0;
@@ -41,4 +32,4 @@ if (isset($options['csv'])) {
     }
     $agencyCrawler->saveCSV($options['csv'], $country);
 }
-print('Fetched all agencies.');
+print('Done.');

@@ -1,7 +1,6 @@
 <?php
 use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
-use League\Csv\EncloseField;
 use League\Csv\Writer;
 
 /**
@@ -31,12 +30,15 @@ class AgencyCrawler
         $firstPage = $this->client->request('GET', $uri);
         // Get total number of pages
         $pagerNode = $firstPage->filter('.view-display-id-directory .pager');
-        $pagerText = $pagerNode->filter('.pager-current')->text();
-        if (!preg_match("/\d+ of (\d+)/", $pagerText, $matches)) {
-            exit('Could not determine total page count');
+        $pageTotal = 1;
+        if ($pagerNode->count()) {
+            $pagerText = $pagerNode->filter('.pager-current')->text();
+            if (!preg_match("/\d+ of (\d+)/", $pagerText, $matches)) {
+                exit('Could not determine total page count');
+            }
+            $pageTotal = $matches[1];
+            print "Total Pages: $pageTotal\n";
         }
-        $pageTotal = $matches[1];
-        print "Total Pages: $pageTotal\n";
         for ($i = 1 + $offset; $i <= $pageTotal; $i++) {
             print "Crawling page $i of $pageTotal\n";
             if ($i === 1) {
@@ -63,26 +65,59 @@ class AgencyCrawler
                 }
                 $country = $node->filter('.location-country .country-name')->text();
                 $website = $node->filter('.website-link a')->attr('href');
+                $mailNodes = $node->filter('.contact-dropdown script');
+                $mail = null;
+                if ($mailNodes->count()) {
+                    $mailNode = $mailNodes->last();
+                    $mail = $this->decodeMail($mailNode->text());
+                }
                 return [
                     'id' => $id,
                     'name' => $name,
+                    'mail' => $mail,
                     'locality' => $locality,
                     'country' => $country,
                     'website' => $website
                 ];
             });
-            $sql = 'INSERT OR IGNORE INTO agency(id, name, locality, country, website)
-              VALUES(?, ?, ?, ?, ?)';
+            $sql = 'INSERT OR IGNORE INTO agency(id, name, mail, locality, country, website)
+              VALUES(?, ?, ?, ?, ?, ?)';
             foreach ($agencyData as $agency) {
                 $this->DB->executeQuery($sql, [
                     $agency['id'],
                     $agency['name'],
+                    $agency['mail'],
                     $agency['locality'],
                     $agency['country'],
                     $agency['website']
                 ]);
             }
         }
+    }
+
+    private function decodeMail($js)
+    {
+        if (!preg_match("/var ([a-zA-Z]+) = '(.+)';/", $js, $match)) {
+            return;
+        }
+        list($f, $var, $mailCoded) = $match;
+        if (!preg_match("/\.split\('(.+)'\);/", $js, $match)) {
+            return;
+        }
+        $separator = $match[1];
+        $mailArray = explode($separator, $mailCoded);
+        if (!preg_match('/innerHTML = (.+);/', $js, $match)) {
+            return;
+        }
+        $expression = $match[1];
+        if (!preg_match_all("/$var\[(\d)\]/", $expression, $matches)) {
+            return;
+        }
+        $mail = '';
+        foreach ($matches[1] as $match) {
+            $mail .= $mailArray[$match];
+        }
+        return $mail;
     }
 
     public function saveMetadata($country, $noCache = false)
@@ -109,12 +144,12 @@ class AgencyCrawler
             $page = $this->client->request('GET', $this->siteNodeUri . '/' . $agencyId);
             $jsNode = $page->filter('script')->last();
             if (!$jsNode->count()) {
-                trigger_error("Could not find JS Data for $agencyId - {$row['name']}", E_USER_ERROR);
+                trigger_error("Could not find JS Data for $agencyId - {$row['name']}", E_USER_WARNING);
                 continue;
             }
             $jsString = $jsNode->text();
             if (!preg_match('/jQuery.extend\(Drupal\.settings, (.+)\);/', $jsString, $match)) {
-                trigger_error("Could not find JS Data for $agencyId - {$row['name']}", E_USER_ERROR);
+                trigger_error("Could not find JS Data for $agencyId - {$row['name']}", E_USER_WARNING);
                 continue;
             }
             $jsData = json_decode($match[1]);
@@ -174,19 +209,19 @@ class AgencyCrawler
     {
         // Build the headers.
         $niceHeaders = [
-            'Web development', 'Drupal', 'Laravel', 'Symfony', 'Wordpress',
-            'WooCommerce', 'Ubercart', 'CakePHP', 'Zend', 'Magento', 'Shopify',
+            'Web development', 'Drupal', 'Laravel', 'Symfony', 'WordPress',
+            'WooCommerce', 'Ubercart', 'CakePHP', 'Zend', 'Magento',
             'PHP', 'Python', 'Ruby', 'Ruby on Rails', 'Django', 'NodeJS',
             'AngularJS', 'CodeIgniter', 'osCommerce', 'Expression engine',
             'Heroku', 'Google app engine', 'Linux server'
         ];
-        $headers = ['id', 'name', 'employees', 'locality', 'postCode',
+        $headers = ['id', 'name', 'mail', 'employees', 'locality', 'postCode',
             'country', 'website', 'telephone'];
         $headers = array_merge($headers, $niceHeaders);
         $writer = Writer::createFromPath($_SERVER['PWD'] . "/$path", 'w+');
         $writer->insertOne($headers);
 
-        $sql = 'SELECT id, name, employees, locality, postCode, country, website, telephone
+        $sql = 'SELECT id, name, mail, employees, locality, postCode, country, website, telephone
           FROM agency ';
         if ($country) {
             $sql .= ' WHERE country = ?';
@@ -218,6 +253,5 @@ SQL;
                 $writer->insertOne($row);
             }
         }
-        //$writer->output($path);
     }
 }
