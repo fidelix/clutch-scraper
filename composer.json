@@ -5,7 +5,8 @@
         "ext-pdo": "*",
         "ext-pdo_sqlite": "*",
         "fabpot/goutte": "^3.2",
-        "doctrine/dbal": "^2.6"
+        "doctrine/dbal": "^2.6",
+        "league/csv": "^9.0"
     },
     "authors": [
         {

@@ -1,6 +1,8 @@
 <?php
 use Goutte\Client;
 use Symfony\Component\DomCrawler\Crawler;
+use League\Csv\EncloseField;
+use League\Csv\Writer;
 
 /**
  * Class AgencyCrawler
@@ -170,33 +172,31 @@ class AgencyCrawler
     }
     public function saveCSV($path, $country)
     {
-        exit();
         // Build the headers.
-        $headers = [
-            'ID', 'Name', 'Employees', 'City', 'Post Code', 'Country',
-            'Website', 'Telephone'];
-        $niceHosting = ['Amazon', 'Heroku', 'Google app engine'];
-        $niceDev = [
-            'Web Development',
-            'Drupal', 'Laravel', 'Symfony', 'Wordpress', 'WooCommerce',
-            'Ubercart', 'CakePHP', 'Zend', 'Magento', 'Shopify', 'PHP',
-            'Python', 'Ruby', 'Ruby on Rails', 'Django'
+        $niceHeaders = [
+            'Web development', 'Drupal', 'Laravel', 'Symfony', 'Wordpress',
+            'WooCommerce', 'Ubercart', 'CakePHP', 'Zend', 'Magento', 'Shopify',
+            'PHP', 'Python', 'Ruby', 'Ruby on Rails', 'Django', 'NodeJS',
+            'AngularJS', 'CodeIgniter', 'osCommerce', 'Expression engine',
+            'Heroku', 'Google app engine', 'Linux server'
         ];
+        $headers = ['id', 'name', 'employees', 'locality', 'postCode',
+            'country', 'website', 'telephone'];
+        $headers = array_merge($headers, $niceHeaders);
+        $writer = Writer::createFromPath($_SERVER['PWD'] . "/$path", 'w+');
+        $writer->insertOne($headers);
 
-        $bigArray = [];
-        $fp = fopen($path, 'w');
-        /*fputcsv($fp, [
-            'ID',
-            ''
-        ]);*/
         $sql = 'SELECT id, name, employees, locality, postCode, country, website, telephone
           FROM agency ';
         if ($country) {
             $sql .= ' WHERE country = ?';
         }
         $stmt = $this->DB->executeQuery($sql, [$country]);
+
         // Process each agency from DB.
         foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            // Add headers.
+            $row += array_fill_keys($niceHeaders, '');
             // Get all attributes.
             $sql = <<<SQL
 SELECT attrPercent, name, type
@@ -205,11 +205,19 @@ INNER JOIN attribute ON focus.attrId = attribute.id
 WHERE focus.agencyId = ?
 SQL;
             $attributes = $this->DB->fetchAll($sql, [$row['id']]);
+            $hasNiceField = false;
             foreach ($attributes as $attribute) {
-                $row[$attribute['name']] = $attribute['attrPercent'];
+                if (in_array($attribute['name'], $niceHeaders)) {
+                    $row[$attribute['name']] = $attribute['attrPercent'];
+                    if ($attribute['name'] != 'Web development') {
+                        $hasNiceField = true;
+                    }
+                }
             }
-            $bigArray[$row['id']] = $row;
+            if ($hasNiceField) {
+                $writer->insertOne($row);
+            }
         }
-        fclose($fp);
+        //$writer->output($path);
     }
 }

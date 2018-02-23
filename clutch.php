@@ -2,9 +2,9 @@
 require 'vendor/autoload.php';
 require 'AgencyCrawler.php';
 
-$optionList = ['country::', 'offset:', 'csv:', 'metadata', 'list'];
+$optionList = ['country:', 'offset:', 'csv:', 'metadata', 'list'];
 $options = getopt('', $optionList);
-if (!isset($options['list']) && !isset($options['metadata'])) {
+if (!isset($options['list']) && !isset($options['metadata']) && !isset($options['csv'])) {
     exit('You need to specify an action (list or metadata)');
 }
 if (!empty($options['offset']) && !isset($options['list'])) {
