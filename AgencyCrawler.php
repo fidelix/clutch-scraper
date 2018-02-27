@@ -55,7 +55,7 @@ class AgencyCrawler
                     }
                     return true;
                 });
-            $agencyData = $agencyNodes->each(function (Crawler $node) {
+            $agencyData = $agencyNodes->each(function (Crawler $node) use ($country) {
                 $id = $node->attr('data-clutch-nid');
                 $name = $node->filter('.company-name a')->text();
                 $localityNode = $node->filter('.location-city .locality');
@@ -63,7 +63,14 @@ class AgencyCrawler
                 if ($localityNode->count()) {
                     $locality = trim(trim($localityNode->text()), ',');
                 }
-                $country = $node->filter('.location-country .country-name')->text();
+                $countryNode = $node->filter('.location-country .country-name');
+                if ($countryNode->count()) {
+                    $country = $countryNode->text();
+                }
+                if (empty($country)) {
+                    trigger_error('Could not set Country', E_USER_ERROR);
+                    exit();
+                }
                 $website = $node->filter('.website-link a')->attr('href');
                 $mailNodes = $node->filter('.contact-dropdown script');
                 $mail = null;

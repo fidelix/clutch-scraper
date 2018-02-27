@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS agency (
-  id INTEGER PRIMARY KEY NOT NULL,
+  id INTEGER NOT NULL,
   name TEXT NOT NULL,
   mail TEXT,
   employees TEXT,
@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS agency (
   postCode TEXT,
   country TEXT NOT NULL,
   website TEXT,
-  telephone TEXT
+  telephone TEXT,
+  UNIQUE (name, country)
 );
 CREATE TABLE IF NOT EXISTS attribute (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
